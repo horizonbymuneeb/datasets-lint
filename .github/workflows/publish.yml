@@ -3,16 +3,30 @@ name: publish
 on:
   push:
     tags: ["v*"]
+  # Re-running a tag by hand must be safe: the upload is skipped when the version
+  # already exists, so a run that failed on a later step can be finished without
+  # burning a version number.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)publish, e.g. v1.2.1"
+        required: true
+        type: string
 
 permissions:
   contents: write
   id-token: write # trusted publishing to PyPI (no API token needed)
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
       - uses: astral-sh/setup-uv@v5
       - run: uv build
       - uses: actions/upload-artifact@v4
@@ -29,14 +43,23 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true # a re-run must not fail on "file already exists"
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-            gh release create "$GITHUB_REF_NAME" --generate-notes
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists"
+          else
+            gh release create "$TAG" --generate-notes
+          fi
