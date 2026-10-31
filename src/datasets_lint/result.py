@@ -78,7 +78,7 @@ class Report:
     results: list[CheckResult] = field(default_factory=list)
     fixes: dict[str, Any] | None = None
     suppressions: list[dict[str, Any]] = field(default_factory=list)
-    version: str = "1.0.0"
+    version: str = "1.1.0"
 
     @property
     def worst(self) -> Severity:

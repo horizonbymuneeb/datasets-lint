@@ -45,13 +45,13 @@ Arithmetic such as `180-135` inside math answers is not treated as a phone numbe
 
 ## `contamination` — eval-set leakage
 
-Bundled fingerprints: **GSM8K** (1,319 rows), **HumanEval** (164). Containment
+Bundled fingerprints: **GSM8K** (1,319 rows), **HumanEval** (164), **MMLU** (14,042). Containment
 scoring: the share of a row's 8-grams that already exist in the eval set. A long
 training row that embeds a benchmark question still scores ~1.0.
 
 ```toml
 [checks.contamination]
-eval_sets = ["gsm8k", "humaneval"]
+eval_sets = ["gsm8k", "humaneval", "mmlu"]
 ngram = 8
 min_containment = 0.5
 max_contaminated_pct = 1.0

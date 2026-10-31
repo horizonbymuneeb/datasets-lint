@@ -1,0 +1,39 @@
+name: New check
+description: Propose a new data-quality check
+title: "check: "
+labels: ["enhancement", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A check is one file plus one fixture — see `CONTRIBUTING.md` and
+        `docs/plugins.md`. Keep it deterministic, bounded and offline.
+  - type: input
+    id: name
+    attributes:
+      label: Check id
+      description: Lowercase, no spaces (used in config and SARIF)
+      placeholder: "langid"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does it catch?
+      description: Describe a real dataset failure this would have caught
+    validations:
+      required: true
+  - type: textarea
+    id: signal
+    attributes:
+      label: How would it detect it?
+      description: The metric or rule, and why it is not noisy
+    validations:
+      required: true
+  - type: textarea
+    id: threshold
+    attributes:
+      label: Suggested default threshold
+      placeholder: "error above 5% of rows"
+    validations:
+      required: false

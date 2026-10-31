@@ -30,7 +30,7 @@ class ContaminationAnalysis:
 
 
 def _fingerprints(ctx: Context):
-    names = list(ctx.threshold("contamination", "eval_sets", ["gsm8k", "humaneval"]))
+    names = list(ctx.threshold("contamination", "eval_sets", ["gsm8k", "humaneval", "mmlu"]))
     custom = dict(ctx.threshold("contamination", "custom_eval_sets", {}) or {})
     ngram = int(ctx.threshold("contamination", "ngram", 8))
     prints = [load_eval_set(name, ngram) for name in names]

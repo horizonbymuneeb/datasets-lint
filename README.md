@@ -50,7 +50,7 @@ Exit codes: `0` ok · `1` threshold breached · `2` usage error.
 | `stats` | empty rows, nulls, length percentiles, label balance | >1% empty |
 | `dup` | exact + near duplicates (MinHash/LSH, exact Jaccard verified), cross-file overlap | >2% near-dup |
 | `pii` | emails, phones, IPs, IBANs, SSNs, API keys — **redacted** in reports | any secret |
-| `contamination` | overlap with GSM8K / HumanEval or your own eval sets | >1% overlap |
+| `contamination` | overlap with GSM8K / HumanEval / MMLU or your own eval sets | >1% overlap |
 | `schema` | required columns, declared types, cardinality limits | missing column |
 | `leakage` | identical texts with different labels (label noise) | >1% of rows |
 
@@ -142,7 +142,14 @@ Measured on 4 vCPU / 8 GB, no GPU (a laptop-class cloud VM):
 
 Deterministic: same file + config + seed ⇒ identical JSON report.
 
+## Contributing
+
+New checks are the best way to contribute: one file, one fixture, one test.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[`good first issue`](https://github.com/horizonbymuneeb/datasets-lint/labels/good%20first%20issue)
+list.
+
 ## License
 
-MIT. Bundled eval data: GSM8K and HumanEval, both MIT — see
+MIT. Bundled eval data: GSM8K, HumanEval and MMLU, all MIT — see
 `src/datasets_lint/data/eval/manifest.json` for sources and checksums.

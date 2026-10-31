@@ -70,10 +70,20 @@ def test_thresholds_can_be_relaxed(tmp_path):
 
 def test_bundled_sets_are_listed_and_loadable():
     names = available()
-    assert {"gsm8k", "humaneval"} <= set(names)
+    assert {"gsm8k", "humaneval", "mmlu"} <= set(names)
     gsm = load_eval_set("gsm8k", 8)
     assert gsm.rows == 1319
     assert gsm.size > 10_000
+
+
+def test_bundled_mmlu_row_is_caught(tmp_path):
+    mmlu_row = eval_texts("mmlu")[0]
+    data = tmp_path / "mmlu_leak.jsonl"
+    data.write_text(json.dumps({"text": mmlu_row}) + "\n")
+    ds = load_dataset([data])
+    result = CHECKS_BY_ID["contamination"].run(ds, ctx(eval_sets=["mmlu"]))
+    assert result.metrics["rows_contaminated"] == 1
+    assert result.metrics["per_eval_set"]["mmlu"]["max_containment"] >= 0.9
 
 
 def test_ngrams_short_text_is_empty():

@@ -31,6 +31,13 @@ SOURCES = {
         "license": "MIT",
         "description": "HumanEval — Python function synthesis problems",
     },
+    "mmlu": {
+        "url": "https://huggingface.co/datasets/cais/mmlu/resolve/main/all/test-00000-of-00001.parquet",
+        "source": "https://huggingface.co/datasets/cais/mmlu",
+        "license": "MIT",
+        "description": "MMLU test split — 57-subject multiple-choice knowledge benchmark",
+        "format": "parquet",
+    },
 }
 
 
@@ -40,7 +47,19 @@ def _download(url: str) -> bytes:
 
 
 def _iter_rows(name: str, raw: bytes):
-    if name == "humaneval":
+    if name == "mmlu":
+        import io as _io
+
+        import polars as pl
+
+        frame = pl.read_parquet(_io.BytesIO(raw))
+        for row in frame.iter_rows(named=True):
+            choices = " ".join(str(c) for c in row["choices"])
+            yield {
+                "id": row.get("subject"),
+                "text": f"{row['question']} {choices}",
+            }
+    elif name == "humaneval":
         text = gzip.decompress(raw).decode("utf-8")
         for line in text.splitlines():
             row = json.loads(line)

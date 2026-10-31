@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.1.0 — 2026-10-31
+
+### Added
+- **MMLU fingerprints** (14,042 test rows) in the `contamination` check — the default
+  eval set list is now `["gsm8k", "humaneval", "mmlu"]`.
+- `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue forms, PR template.
+- Launch kit (`docs/launch/launch-kit.md`) and eight `good first issue`s.
+
+### Fixed
+- Bundled JSONL parsing split on Unicode line separators (`\u2028`, `\x85`), which
+  truncated MMLU rows; now splits on `\n` only.
+
+### Numbers
+| workload | wall | peak RSS |
+|---|---|---|
+| 100k rows, all six checks, 3 eval sets | 48 s | 1.4 GB |
+
 ## v1.0.0 — 2026-10-31
 
 The enterprise release: audit → fix → gate CI → ship.

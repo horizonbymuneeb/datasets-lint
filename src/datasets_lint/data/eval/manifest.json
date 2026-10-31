@@ -18,5 +18,16 @@
     "sha256": "dbb6d9fb6c7e720c83cf07c549673d495d7f22012d40ba0aa2fdb3eb5b4b8f5b",
     "source": "https://github.com/openai/human-eval",
     "url": "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl.gz"
+  },
+  "mmlu": {
+    "bytes": 1974753,
+    "description": "MMLU test split \u2014 57-subject multiple-choice knowledge benchmark",
+    "file": "mmlu.jsonl.gz",
+    "format": "parquet",
+    "license": "MIT",
+    "rows": 14042,
+    "sha256": "bb386b8a9e5fac2bcf48a189911604d91fe0f0501112387d39fc1c57be347df3",
+    "source": "https://huggingface.co/datasets/cais/mmlu",
+    "url": "https://huggingface.co/datasets/cais/mmlu/resolve/main/all/test-00000-of-00001.parquet"
   }
 }

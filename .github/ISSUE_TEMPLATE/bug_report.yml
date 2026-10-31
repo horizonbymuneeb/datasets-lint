@@ -1,0 +1,44 @@
+name: Bug report
+description: Something is wrong with a check, a report, or the CLI
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! A minimal reproduction makes fixes 10x faster.
+  - type: input
+    id: version
+    attributes:
+      label: datasets-lint version
+      description: Output of `datasets-lint --version`
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command and output
+      description: The exact command you ran and the output you got
+      render: console
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Minimal dataset sample
+      description: 3–5 rows that reproduce the problem (remove any real PII)
+      render: json
+    validations:
+      required: false
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+      placeholder: "3.12.4 / Ubuntu 24.04"
+    validations:
+      required: true

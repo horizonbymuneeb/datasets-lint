@@ -71,7 +71,7 @@ def _read_bundled(name: str) -> list[str]:
     if meta is None:
         raise KeyError(f"unknown eval set {name!r}; available: {', '.join(available())}")
     blob = gzip.decompress(_data_file(meta["file"]).read_bytes()).decode("utf-8")
-    return [json.loads(line)["text"] for line in blob.splitlines() if line.strip()]
+    return [json.loads(line)["text"] for line in blob.split("\n") if line.strip()]
 
 
 def _read_custom(path: str | Path) -> list[str]:
