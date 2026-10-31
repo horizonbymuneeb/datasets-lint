@@ -31,6 +31,17 @@ Or call the CLI directly, with SARIF for code scanning:
     sarif_file: datasets-lint.sarif
 ```
 
+## JUnit XML
+
+Write JUnit XML for CI test dashboards:
+
+```console
+datasets-lint run data/train.jsonl --junit reports/datasets-lint.xml
+```
+
+Each dataset check is represented as a testcase. Error results are failures, ok results are
+skipped, and warning results remain regular testcases.
+
 ## pre-commit
 
 ```yaml

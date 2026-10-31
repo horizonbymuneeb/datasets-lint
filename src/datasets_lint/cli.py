@@ -50,6 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="threshold preset: strict (blocks on warnings), ci, dev (never fails)",
     )
     run.add_argument("--sarif", default=None, help="write SARIF 2.1.0 for GitHub code scanning")
+    run.add_argument("--junit", default=None, help="write JUnit XML for CI dashboards")
     run.add_argument("--no-plugins", action="store_true", help="ignore third-party check plugins")
     run.add_argument("--report", default=None, help="write a single-file HTML report")
     run.add_argument("--json-out", default=None, help="write the JSON report")
@@ -233,6 +234,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
         path = write_sarif(report, args.sarif)
         if not args.quiet:
             print(f"  sarif → {path}")
+    if args.junit:
+        from datasets_lint.report.junit import write_junit
+
+        path = write_junit(report, args.junit)
+        if not args.quiet:
+            print(f"  junit → {path}")
     if args.report:
         path = write_html(report, args.report)
         if not args.quiet:
