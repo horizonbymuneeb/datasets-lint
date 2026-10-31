@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from datasets_lint import __version__
 from datasets_lint.baseline import diff_lines, load_baseline
 from datasets_lint.checks import ALL_CHECKS
-from datasets_lint.config import Config, load_config
+from datasets_lint.config import CONFIG_FILENAME, Config, load_config
 from datasets_lint.dataset import DatasetError, load_dataset
 from datasets_lint.engine import UnknownCheck, build_report, resolve_checks, run_checks
 from datasets_lint.report import write_html, write_json
@@ -92,6 +93,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--quiet", action="store_true", help="only print the verdict line")
 
     sub.add_parser("checks", help="list available checks")
+    init = sub.add_parser("init", help="scaffold configuration from a dataset")
+    init.add_argument("path", help=".jsonl / .json / .csv / .parquet file")
+    init.add_argument("--force", action="store_true", help="overwrite existing configuration")
     return parser
 
 
@@ -245,12 +249,62 @@ def _cmd_checks() -> int:
     return EXIT_OK
 
 
+def _cmd_init(args: argparse.Namespace) -> int:
+    from datasets_lint.checks.base import Context
+    from datasets_lint.checks.stats import StatsCheck
+
+    cfg = Config()
+    try:
+        dataset = load_dataset([args.path], sample=cfg.sample, seed=cfg.seed)
+        if not dataset.audited_rows:
+            raise DatasetError("cannot infer thresholds from an empty dataset")
+        metrics = StatsCheck().run(dataset, Context(config=cfg)).metrics
+        lines = [
+            f"# Based on {dataset.audited_rows} of {dataset.total_rows} rows (seed {cfg.seed}).",
+            "# Review this baseline before using it as a quality gate.",
+            "[defaults]",
+        ]
+        for key in ("text_column", "label_column"):
+            value = getattr(dataset, key)
+            if value is not None:
+                lines.append(f"{key} = {json.dumps(value, ensure_ascii=False)}")
+        lines += [
+            "",
+            "[checks.schema]",
+            f"required = {json.dumps(dataset.columns, ensure_ascii=False)}",
+            "",
+            "[checks.stats]",
+            "# Observed percentages + 1 percentage point, capped at 100.",
+            f"max_empty_pct = {min(100.0, metrics['empty_pct'] + 1.0)}",
+            f"max_null_pct = {min(100.0, max(metrics['null_pct'].values(), default=0.0) + 1.0)}",
+        ]
+        balance = metrics.get("label_balance_pct", {})
+        if len(balance) > 1:
+            lines += [
+                "# Smallest observed label share - 1 percentage point, floored at 0.",
+                f"min_label_pct = {max(0.0, min(balance.values()) - 1.0)}",
+            ]
+        with Path(CONFIG_FILENAME).open("w" if args.force else "x", encoding="utf-8") as fh:
+            # TOML also forbids DEL, which JSON leaves literal with ensure_ascii=False.
+            fh.write(("\n".join(lines) + "\n").replace("\x7f", "\\u007f"))
+    except FileExistsError:
+        print(f"datasets-lint: {CONFIG_FILENAME} exists; use --force to overwrite", file=sys.stderr)
+        return EXIT_USAGE
+    except (DatasetError, OSError) as exc:
+        print(f"datasets-lint: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    print(f"wrote {CONFIG_FILENAME}")
+    return EXIT_OK
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         if args.command == "checks":
             return _cmd_checks()
+        if args.command == "init":
+            return _cmd_init(args)
         return _cmd_run(args)
     except KeyboardInterrupt:  # pragma: no cover
         print("\ninterrupted", file=sys.stderr)

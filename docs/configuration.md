@@ -14,6 +14,24 @@ label_column = "label"   # auto-detected when omitted
 plugins = true           # load third-party checks from entry points
 ```
 
+## Generate a starting configuration
+
+```console
+datasets-lint init train.jsonl
+```
+
+This writes `datasets-lint.toml` in the current directory using the existing
+text/label column inference, and makes the detected columns required. It uses the
+standard deterministic sample (up to 100,000 rows, seed 0). Empty-text and
+worst-column null percentages get one percentage point of headroom, capped at
+100; the smallest label share reported by the stats check gets one percentage
+point of tolerance, floored at zero. Comments record the sample size and margins.
+
+Review the inferred columns and thresholds: this captures the current dataset's
+baseline, not a guarantee that its quality is acceptable. Other checks retain
+their defaults. Existing configuration is preserved unless you pass `--force`;
+unreadable or empty datasets do not overwrite it.
+
 ## Profiles
 
 A profile is a preset of thresholds; your `[checks.*]` values are merged on top.

@@ -3,7 +3,7 @@ from pathlib import Path
 
 from datasets_lint.checks import ALL_CHECKS
 from datasets_lint.cli import main
-from datasets_lint.config import Config
+from datasets_lint.config import Config, load_config
 from datasets_lint.dataset import load_dataset
 from datasets_lint.engine import build_report, run_checks
 from datasets_lint.report.html_out import render_html
@@ -94,3 +94,66 @@ def test_render_html_contains_sections():
     assert "Duplicates" in html
     assert "PII &amp; secrets" in html
     assert "verdict: error" in html
+
+
+def test_init_config_round_trips(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data = tmp_path / "data.jsonl"
+    data.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in [
+                {"text": "hello", "label": "a", 'quoted"column 😀\x7f': 1},
+                {"text": "", "label": "b", 'quoted"column 😀\x7f': None},
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert main(["init", str(data)]) == 0
+    config = load_config()
+    assert config.text_column == "text"
+    assert config.label_column == "label"
+    assert config.checks["schema"]["required"] == ["text", "label", 'quoted"column 😀\x7f']
+    assert config.checks["stats"]["max_empty_pct"] == 51.0
+    assert config.checks["stats"]["max_null_pct"] == 51.0
+    assert config.checks["stats"]["min_label_pct"] == 49.0
+    assert main(["run", str(data), "--checks", "stats,schema", "--no-plugins"]) == 0
+
+
+def test_init_refuses_overwrite_unless_forced(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    config = tmp_path / "datasets-lint.toml"
+    config.write_text("# existing settings\n", encoding="utf-8")
+    assert main(["init", CLEAN]) == 2
+    assert config.read_text() == "# existing settings\n"
+    assert "--force" in capsys.readouterr().err
+    assert main(["init", CLEAN, "--force"]) == 0
+    assert load_config().text_column == "text"
+
+
+def test_init_missing_input_writes_nothing(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert main(["init", "missing.jsonl"]) == 2
+    assert not (tmp_path / "datasets-lint.toml").exists()
+    assert "no such file" in capsys.readouterr().err
+
+
+def test_init_numeric_dataset_omits_undetected_columns(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data = tmp_path / "data.csv"
+    data.write_text("count\n1\n1\n", encoding="utf-8")
+    assert main(["init", str(data)]) == 0
+    config = load_config()
+    assert config.text_column is None
+    assert config.label_column is None
+    assert config.checks["stats"]["max_empty_pct"] == 100.0
+
+
+def test_init_empty_dataset_preserves_existing_config(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "empty.csv").write_text("text,label\n", encoding="utf-8")
+    config = tmp_path / "datasets-lint.toml"
+    config.write_text("# existing\n", encoding="utf-8")
+    assert main(["init", "empty.csv", "--force"]) == 2
+    assert config.read_text() == "# existing\n"
+    assert "empty dataset" in capsys.readouterr().err
