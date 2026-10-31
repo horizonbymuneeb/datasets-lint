@@ -1,0 +1,24 @@
+# datasets-lint configuration. Copy to datasets-lint.toml and tune.
+
+[defaults]
+sample = 100000      # max rows audited (seeded random sample)
+seed = 0
+fail_on = "error"    # none | warn | error  — exit 1 at this severity
+# text_column = "text"
+# label_column = "label"
+
+[checks.stats]
+max_empty_pct = 1.0
+max_null_pct = 50.0
+min_label_pct = 1.0
+
+[checks.dup]
+threshold = 0.7      # exact Jaccard cutoff for near-duplicates
+shingle_size = 3     # words per shingle
+num_perm = 64        # MinHash permutations (candidate generation only)
+max_chars = 300      # truncate each row before shingling
+max_near_dup_pct = 2.0
+
+[checks.pii]
+max_error_findings_pct = 0.1   # secrets, IBANs, SSNs
+max_warn_findings_pct = 5.0    # emails, phones, IPs

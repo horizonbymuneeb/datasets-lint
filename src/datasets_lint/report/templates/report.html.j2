@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>datasets-lint report — {{ paths }}</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b; --text: #e6e8ee;
+    --muted: #9aa3b2; --border: #2a2f3a;
+    --ok: #22c55e; --warn: #f59e0b; --error: #ef4444; --accent: #6366f1;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f7fb; --panel:#fff; --panel-2:#f1f3f9; --text:#12141a;
+            --muted:#5b6472; --border:#e2e6ee; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 64px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+  header .sub { color: var(--muted); font-size: 13px; word-break: break-all; }
+  .verdict { display:inline-flex; align-items:center; gap:8px; margin-top:14px;
+             padding:6px 12px; border-radius:999px; font-weight:600; font-size:13px;
+             border:1px solid var(--border); background:var(--panel); }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .ok .dot { background: var(--ok); } .warn .dot { background: var(--warn); }
+  .error .dot { background: var(--error); }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr));
+           gap:12px; margin:22px 0 26px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .card .k { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.07em; }
+  .card .v { font-size:22px; font-weight:650; margin-top:4px; font-variant-numeric: tabular-nums; }
+  section.check { background:var(--panel); border:1px solid var(--border); border-radius:14px;
+                  padding:18px 20px; margin-bottom:14px; }
+  section.check h2 { font-size:16px; margin:0; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .badge { font-size:11px; text-transform:uppercase; letter-spacing:.06em; padding:2px 8px;
+           border-radius:999px; border:1px solid var(--border); font-weight:700; }
+  .badge.ok { color:var(--ok); } .badge.warn { color:var(--warn); } .badge.error { color:var(--error); }
+  .badge.id { color:var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+              text-transform:none; letter-spacing:0; }
+  .sum { color:var(--muted); margin:8px 0 0; font-size:14px; }
+  table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13.5px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.05em; }
+  tr:last-child td { border-bottom:none; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12.5px; }
+  .bars { margin-top:14px; display:grid; gap:14px; }
+  .bars .t { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; }
+  .bar { display:grid; grid-template-columns: 180px 1fr 70px; gap:10px; align-items:center; margin:4px 0; font-size:13px; }
+  .bar .track { background:var(--panel-2); border-radius:6px; height:9px; overflow:hidden; }
+  .bar .fill { height:100%; background:var(--accent); border-radius:6px; }
+  .bar .num { text-align:right; color:var(--muted); font-variant-numeric: tabular-nums; }
+  footer { color:var(--muted); font-size:12px; margin-top:28px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>datasets-lint report</h1>
+    <div class="sub mono">{{ paths }}</div>
+    <div class="verdict {{ verdict }}"><span class="dot"></span> verdict: {{ verdict }}</div>
+  </header>
+
+  <div class="cards">
+    <div class="card"><div class="k">rows audited</div><div class="v">{{ audited_rows }}</div></div>
+    <div class="card"><div class="k">rows total</div><div class="v">{{ total_rows }}</div></div>
+    <div class="card"><div class="k">checks</div><div class="v">{{ counts.ok }} ok · {{ counts.warn }} warn · {{ counts.error }} err</div></div>
+    <div class="card"><div class="k">run time</div><div class="v">{{ total_time }}</div></div>
+    <div class="card"><div class="k">text column</div><div class="v mono" style="font-size:15px">{{ text_column }}</div></div>
+    <div class="card"><div class="k">label column</div><div class="v mono" style="font-size:15px">{{ label_column }}</div></div>
+  </div>
+
+  {% for c in checks %}
+  <section class="check">
+    <h2>
+      <span class="badge {{ c.severity }}">{{ c.severity }}</span>
+      {{ c.title }}
+      <span class="badge id">{{ c.id }}</span>
+      <span style="color:var(--muted); font-size:12px; font-weight:400">{{ c.duration }}</span>
+    </h2>
+    <p class="sum">{{ c.summary }}</p>
+
+    {% if c.bars %}
+    <div class="bars">
+      {% for group in c.bars %}
+      <div>
+        <div class="t">{{ group.title }}</div>
+        {% for item in group.rows %}
+        <div class="bar">
+          <div class="mono">{{ item.label }}</div>
+          <div class="track"><div class="fill" style="width: {{ item.width }}%"></div></div>
+          <div class="num">{{ item.value }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if c.findings %}
+    <table>
+      <thead><tr><th style="width:80px">row</th><th>finding</th><th style="width:35%">detail</th></tr></thead>
+      <tbody>
+      {% for f in c.findings %}
+        <tr>
+          <td class="mono">{{ f.row if f.row is not none else "—" }}</td>
+          <td>{{ f.message }}</td>
+          <td class="mono" style="color:var(--muted)">{{ f.detail }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <footer>datasets-lint {{ version }} · generated offline on CPU · sample seed {{ seed }}</footer>
+</div>
+</body>
+</html>

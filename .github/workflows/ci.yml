@@ -1,0 +1,63 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv pip install --system -e ".[dev]"
+      - name: Lint
+        run: ruff check .
+      - name: Format check
+        run: ruff format --check .
+      - name: Tests
+        run: pytest --cov=datasets_lint --cov-report=term-missing
+
+  self-lint:
+    # dogfood: the linter must run cleanly on its own fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Audit fixtures
+        run: |
+          uvx --from . datasets-lint run tests/fixtures/clean.jsonl --report clean.html
+          uvx --from . datasets-lint run tests/fixtures/dirty.jsonl --fail-on none --report dirty.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: self-lint-reports
+          path: "*.html"
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: Smoke-test the wheel in a clean venv
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+          /tmp/venv/bin/datasets-lint --version
+          /tmp/venv/bin/datasets-lint run tests/fixtures/dirty.jsonl --fail-on none
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

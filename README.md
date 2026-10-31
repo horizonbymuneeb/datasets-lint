@@ -1,0 +1,121 @@
+# datasets-lint
+
+**ruff for training data.** Audit a dataset for duplicates, PII, distribution problems and
+eval-set contamination — offline, on CPU, in one command, with a CI-friendly exit code.
+
+```console
+$ datasets-lint run train.jsonl --report out.html
+datasets-lint 0.1.0  ·  train.jsonl
+  120,000 rows audited (of 120,000, seed 0)  ·  text=text  label=label
+
+  ✓ stats      0.42s   120,000 rows · 0.00% empty · worst column 0.0% null
+  ✗ dup       12.10s   18.20% near-duplicate (4,211 clusters), 12.00% exact
+  ✗ pii        0.91s   0.41% of rows contain PII (email 487, phone 12, api_key 1)
+
+  verdict: error — 2 errors, 0 warnings, 1 ok · 13.43s
+  report → out.html
+```
+
+## Why
+
+Every team that fine-tunes or publishes a dataset re-writes the same checks in a
+throwaway notebook: duplicates, PII, contamination. It is slow, inconsistent, and never
+runs in CI. `datasets-lint` packages it once:
+
+- **fast** — samples 100k rows by default and finishes in seconds, not hours
+- **offline** — no API keys, no cloud, no data leaves the machine
+- **CI-native** — `exit 1` on threshold breach, JSON output, baseline diffing
+- **readable** — one self-contained HTML report you can attach to a dataset card or a PR
+- **extensible** — one check = one file; the plugin API is ~20 lines
+
+## Install
+
+```console
+uvx datasets-lint --help        # run without installing
+# or
+pip install datasets-lint
+```
+
+## Usage
+
+```console
+datasets-lint run data.jsonl                       # text summary
+datasets-lint run data.parquet --report out.html   # single-file HTML report
+datasets-lint run train.jsonl test.jsonl --checks dup   # cross-split duplicate check
+datasets-lint run data.csv --json-out report.json --fail-on warn
+datasets-lint run data.jsonl --baseline prev.json  # did this PR make the data worse?
+datasets-lint checks                               # list checks
+```
+
+Supported inputs: `.jsonl`, `.ndjson`, `.json`, `.csv`, `.parquet`.
+
+Exit codes: `0` ok · `1` threshold breached · `2` usage/input error.
+
+## Checks
+
+| id | what it finds | default severity |
+|---|---|---|
+| `stats` | empty rows, nulls, length percentiles, label balance | `error` if >1% empty |
+| `dup` | exact + near duplicates (MinHash/LSH), cross-file overlap | `error` if >2% near-dup |
+| `pii` | emails, phones, IPs, IBANs, SSNs, API keys (redacted) | `error` on secrets |
+| `contamination` | overlap with eval sets (GSM8K, MMLU, HumanEval) | _planned for v0.2_ |
+
+## Configuration
+
+`datasets-lint.toml` in the working directory (or `--config path`):
+
+```toml
+[defaults]
+sample = 100000
+seed = 0
+fail_on = "error"          # none | warn | error
+
+[checks.dup]
+threshold = 0.9            # Jaccard threshold for near-duplicates
+num_perm = 64
+shingle_size = 5
+max_near_dup_pct = 2.0
+
+[checks.pii]
+max_error_findings_pct = 0.1
+max_warn_findings_pct = 5.0
+
+[checks.stats]
+max_empty_pct = 1.0
+max_null_pct = 50.0
+min_label_pct = 1.0
+```
+
+## Writing a check
+
+```python
+# src/datasets_lint/checks/short.py
+from datasets_lint.checks.base import Check, Context
+from datasets_lint.dataset import Dataset
+from datasets_lint.result import CheckResult, Severity
+
+
+class ShortRowsCheck(Check):
+    id = "short"
+    title = "Short rows"
+    description = "Flags texts under N characters."
+
+    def run(self, ds: Dataset, ctx: Context) -> CheckResult:
+        limit = ctx.threshold(self.id, "min_chars", 20)
+        bad = [i for i, t in ds.texts() if 0 < len(t) < limit]
+        pct = round(100 * len(bad) / max(ds.audited_rows, 1), 2)
+        return CheckResult(
+            check_id=self.id,
+            title=self.title,
+            severity=Severity.WARN if bad else Severity.OK,
+            summary=f"{pct}% of rows are shorter than {limit} chars",
+            metrics={"short_pct": pct},
+            findings=[],  # add Finding(...) entries for samples
+        )
+```
+
+Register it in `src/datasets_lint/checks/__init__.py`. Add a fixture and a test — that's it.
+
+## License
+
+MIT

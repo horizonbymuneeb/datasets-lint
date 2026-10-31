@@ -1,0 +1,7 @@
+- id: datasets-lint
+  name: datasets-lint
+  description: Audit datasets for duplicates, PII and distribution problems
+  entry: datasets-lint
+  language: python
+  pass_filenames: true
+  args: ["run", "--fail-on", "error"]

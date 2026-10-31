@@ -1,0 +1,60 @@
+name: "datasets-lint"
+description: "Audit a dataset for duplicates, PII and distribution problems"
+author: "datasets-lint contributors"
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  paths:
+    description: "Dataset files to audit (space separated)"
+    required: true
+  checks:
+    description: "Comma separated check ids (default: all)"
+    required: false
+    default: ""
+  fail-on:
+    description: "none | warn | error"
+    required: false
+    default: "error"
+  report:
+    description: "Path for the HTML report"
+    required: false
+    default: "datasets-lint-report.html"
+  version:
+    description: "datasets-lint version to run"
+    required: false
+    default: "latest"
+
+outputs:
+  verdict:
+    description: "ok | warn | error"
+    value: ${{ steps.lint.outputs.verdict }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: astral-sh/setup-uv@v5
+    - id: lint
+      shell: bash
+      run: |
+        set +e
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          uvx datasets-lint run ${{ inputs.paths }} \
+            --fail-on ${{ inputs.fail-on }} \
+            --report ${{ inputs.report }} \
+            ${{ inputs.checks != '' && format('--checks {0}', inputs.checks) || '' }}
+        else
+          uvx --from datasets-lint==${{ inputs.version }} datasets-lint run ${{ inputs.paths }} \
+            --fail-on ${{ inputs.fail-on }} \
+            --report ${{ inputs.report }} \
+            ${{ inputs.checks != '' && format('--checks {0}', inputs.checks) || '' }}
+        fi
+        code=$?
+        echo "verdict=$([ $code -eq 0 ] && echo ok || echo error)" >> "$GITHUB_OUTPUT"
+        exit $code
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: datasets-lint-report
+        path: ${{ inputs.report }}
