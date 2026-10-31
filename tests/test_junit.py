@@ -53,17 +53,20 @@ def test_junit_xml_is_parseable_and_preserves_result_semantics(tmp_path):
 def test_cli_writes_junit(tmp_path, capsys):
     out = tmp_path / "report.xml"
 
-    assert main(
-        [
-            "run",
-            DIRTY,
-            "--no-plugins",
-            "--fail-on",
-            "none",
-            "--junit",
-            str(out),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "run",
+                DIRTY,
+                "--no-plugins",
+                "--fail-on",
+                "none",
+                "--junit",
+                str(out),
+            ]
+        )
+        == 0
+    )
 
     root = ET.parse(out).getroot()
     assert root.attrib["name"] == "datasets-lint"
