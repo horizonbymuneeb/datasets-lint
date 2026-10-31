@@ -38,7 +38,14 @@ def test_json_report_is_written(tmp_path, capsys):
     data = json.loads(out.read_text())
     assert data["tool"] == "datasets-lint"
     assert data["verdict"] == "error"
-    assert {c["id"] for c in data["checks"]} == {"stats", "dup", "pii", "contamination"}
+    assert {c["id"] for c in data["checks"]} == {
+        "stats",
+        "dup",
+        "pii",
+        "contamination",
+        "schema",
+        "leakage",
+    }
 
 
 def test_html_report_is_written(tmp_path, capsys):
@@ -74,7 +81,7 @@ def test_baseline_diff(tmp_path, capsys):
 def test_checks_command_lists_all(capsys):
     assert main(["checks"]) == 0
     out = capsys.readouterr().out
-    for check_id in ("stats", "dup", "pii", "contamination"):
+    for check_id in ("stats", "dup", "pii", "contamination", "schema", "leakage"):
         assert check_id in out
 
 

@@ -18,7 +18,7 @@ class Severity(str, Enum):
     def rank(self) -> int:
         return {"ok": 0, "warn": 1, "error": 2}[self.value]
 
-    def __ge__(self, other: object) -> bool:  # type: ignore[override]
+    def __ge__(self, other: object) -> bool:
         if isinstance(other, Severity):
             return self.rank >= other.rank
         return NotImplemented
@@ -76,7 +76,9 @@ class Report:
     label_column: str | None
     columns: list[str]
     results: list[CheckResult] = field(default_factory=list)
-    version: str = "0.2.0"
+    fixes: dict[str, Any] | None = None
+    suppressions: list[dict[str, Any]] = field(default_factory=list)
+    version: str = "1.0.0"
 
     @property
     def worst(self) -> Severity:
@@ -107,4 +109,6 @@ class Report:
             "verdict": self.worst.value,
             "counts": self.counts(),
             "checks": [r.to_dict() for r in self.results],
+            "fixes": self.fixes,
+            "suppressions": self.suppressions,
         }

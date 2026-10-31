@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import sys
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Any
 
 from datasketch import MinHash, MinHashLSH
@@ -58,25 +59,124 @@ def _shingles(text: str, size: int) -> frozenset[str]:
     )
 
 
+@dataclass
+class DupSettings:
+    threshold: float = 0.7
+    num_perm: int = 64
+    shingle_size: int = 3
+    max_chars: int = 300
+    max_near_dup_pct: float = 2.0
+
+    @classmethod
+    def from_context(cls, ctx: Context) -> DupSettings:
+        return cls(
+            threshold=float(ctx.threshold("dup", "threshold", 0.7)),
+            num_perm=int(ctx.threshold("dup", "num_perm", 64)),
+            shingle_size=int(ctx.threshold("dup", "shingle_size", 3)),
+            max_chars=int(ctx.threshold("dup", "max_chars", 300)),
+            max_near_dup_pct=float(ctx.threshold("dup", "max_near_dup_pct", 2.0)),
+        )
+
+
+@dataclass
+class DupAnalysis:
+    clusters: list[list[int]] = field(default_factory=list)
+    metrics: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def duplicate_rows(self) -> list[int]:
+        """Every row that is not the first member of its cluster."""
+        return sorted(row for members in self.clusters for row in sorted(members)[1:])
+
+
+def find_clusters(ds: Dataset, ctx: Context) -> DupAnalysis:
+    """Compute near-duplicate clusters. Shared by the check and the `dup` codemod."""
+    settings = DupSettings.from_context(ctx)
+    suppressed = ctx.suppressed_rows("dup")
+    total = ds.audited_rows - len(suppressed)
+    metrics: dict[str, Any] = {
+        "threshold": settings.threshold,
+        "shingle_size": settings.shingle_size,
+        "max_chars": settings.max_chars,
+    }
+    if total == 0:
+        return DupAnalysis(metrics=metrics)
+
+    # Long documents are truncated: the opening characters already carry enough
+    # signal, and it keeps the sketch and the exact sets small.
+    texts = [(i, normalize(t)[: settings.max_chars]) for i, t in ds.texts() if i not in suppressed]
+
+    exact: dict[str, list[int]] = defaultdict(list)
+    for i, norm in texts:
+        if norm:
+            exact[hashlib.sha1(norm.encode()).hexdigest()].append(i)
+    exact_groups = {k: v for k, v in exact.items() if len(v) > 1}
+    exact_rows = sum(len(v) for v in exact_groups.values())
+    metrics["exact_dup_rows"] = exact_rows
+    metrics["exact_dup_pct"] = round(100.0 * exact_rows / total, 3)
+    metrics["exact_dup_groups"] = len(exact_groups)
+
+    sets: dict[int, frozenset[str]] = {}
+    sketches: dict[int, MinHash] = {}
+    lsh = MinHashLSH(threshold=max(0.05, settings.threshold - 0.15), num_perm=settings.num_perm)
+    for i, norm in texts:
+        grams = _shingles(norm, settings.shingle_size)
+        if not grams:
+            continue
+        sets[i] = grams
+        mh = MinHash(num_perm=settings.num_perm)
+        for sh in grams:
+            mh.update(sh.encode())
+        sketches[i] = mh
+        lsh.insert(str(i), mh)
+
+    uf = _UnionFind()
+    candidate_pairs = 0
+    verified_pairs = 0
+    for i, grams in sets.items():
+        for other in lsh.query(sketches[i]):
+            j = int(other)
+            if j <= i:
+                continue
+            candidate_pairs += 1
+            other_grams = sets[j]
+            inter = len(grams & other_grams)
+            if inter == 0:
+                continue
+            if inter / len(grams | other_grams) >= settings.threshold:
+                verified_pairs += 1
+                uf.union(i, j)
+
+    clusters = [sorted(v) for v in uf.clusters().values() if len(v) > 1]
+    clusters.sort(key=len, reverse=True)
+    near_rows = sum(len(c) for c in clusters)
+    metrics["near_dup_rows"] = near_rows
+    metrics["near_dup_pct"] = round(100.0 * near_rows / total, 3)
+    metrics["near_dup_clusters"] = len(clusters)
+    metrics["candidate_pairs"] = candidate_pairs
+    metrics["verified_pairs"] = verified_pairs
+    if clusters:
+        metrics["largest_cluster"] = len(clusters[0])
+
+    if len(ds.sources) > 1:
+        cross_source_rows = sum(
+            len(c) for c in clusters if len({ds.source_of(ds.rows[m]) for m in c}) > 1
+        )
+        metrics["cross_source_dup_rows"] = cross_source_rows
+        metrics["cross_source_dup_pct"] = round(100.0 * cross_source_rows / total, 3)
+
+    return DupAnalysis(clusters=clusters, metrics=metrics)
+
+
 class DupCheck(Check):
     id = "dup"
     title = "Duplicates"
     description = "Exact and near-duplicate rows (MinHash/LSH), plus cross-split overlap."
 
     def run(self, ds: Dataset, ctx: Context) -> CheckResult:
-        threshold = float(ctx.threshold(self.id, "threshold", 0.7))
-        num_perm = int(ctx.threshold(self.id, "num_perm", 64))
-        shingle_size = int(ctx.threshold(self.id, "shingle_size", 3))
-        max_chars = int(ctx.threshold(self.id, "max_chars", 300))
-        max_near_dup_pct = float(ctx.threshold(self.id, "max_near_dup_pct", 2.0))
-
-        total = ds.audited_rows
-        metrics: dict[str, Any] = {
-            "threshold": threshold,
-            "shingle_size": shingle_size,
-            "max_chars": max_chars,
-        }
-        if total == 0:
+        analysis = find_clusters(ds, ctx)
+        metrics = analysis.metrics
+        if ds.audited_rows == 0:
             return CheckResult(
                 check_id=self.id,
                 title=self.title,
@@ -85,73 +185,8 @@ class DupCheck(Check):
                 metrics=metrics,
             )
 
-        # Long documents are truncated: the opening characters already carry enough
-        # signal, and it keeps the sketch and the exact sets small.
-        texts = [(i, normalize(t)[:max_chars]) for i, t in ds.texts()]
-
-        exact: dict[str, list[int]] = defaultdict(list)
-        for i, norm in texts:
-            if norm:
-                exact[hashlib.sha1(norm.encode()).hexdigest()].append(i)
-        exact_groups = {k: v for k, v in exact.items() if len(v) > 1}
-        exact_rows = sum(len(v) for v in exact_groups.values())
-        metrics["exact_dup_rows"] = exact_rows
-        metrics["exact_dup_pct"] = round(100.0 * exact_rows / total, 3)
-        metrics["exact_dup_groups"] = len(exact_groups)
-
-        sets: dict[int, frozenset[str]] = {}
-        sketches: dict[int, MinHash] = {}
-        lsh = MinHashLSH(threshold=max(0.05, threshold - 0.15), num_perm=num_perm)
-        for i, norm in texts:
-            grams = _shingles(norm, shingle_size)
-            if not grams:
-                continue
-            sets[i] = grams
-            mh = MinHash(num_perm=num_perm)
-            for sh in grams:
-                mh.update(sh.encode())
-            sketches[i] = mh
-            lsh.insert(str(i), mh)
-
-        uf = _UnionFind()
-        candidate_pairs = 0
-        verified_pairs = 0
-        for i, grams in sets.items():
-            for other in lsh.query(sketches[i]):
-                j = int(other)
-                if j <= i:
-                    continue
-                candidate_pairs += 1
-                other_grams = sets[j]
-                inter = len(grams & other_grams)
-                if inter == 0:
-                    continue
-                jaccard = inter / len(grams | other_grams)
-                if jaccard >= threshold:
-                    verified_pairs += 1
-                    uf.union(i, j)
-
-        clusters = {k: v for k, v in uf.clusters().items() if len(v) > 1}
-        near_rows = sum(len(v) for v in clusters.values())
-        metrics["near_dup_rows"] = near_rows
-        metrics["near_dup_pct"] = round(100.0 * near_rows / total, 3)
-        metrics["near_dup_clusters"] = len(clusters)
-        metrics["candidate_pairs"] = candidate_pairs
-        metrics["verified_pairs"] = verified_pairs
-        if clusters:
-            metrics["largest_cluster"] = max(len(v) for v in clusters.values())
-
-        cross_source_rows = 0
-        if len(ds.sources) > 1:
-            for members in clusters.values():
-                if len({ds.source_of(ds.rows[m]) for m in members}) > 1:
-                    cross_source_rows += len(members)
-            metrics["cross_source_dup_rows"] = cross_source_rows
-            metrics["cross_source_dup_pct"] = round(100.0 * cross_source_rows / total, 3)
-
         findings: list[Finding] = []
-        for members in sorted(clusters.values(), key=len, reverse=True)[:25]:
-            members = sorted(members)
+        for members in analysis.clusters[:25]:
             srcs = sorted({ds.source_of(ds.rows[m]) for m in members})
             sample = normalize(ds.text(ds.rows[members[0]]))[:120]
             findings.append(
@@ -164,15 +199,16 @@ class DupCheck(Check):
                 )
             )
 
+        max_pct = DupSettings.from_context(ctx).max_near_dup_pct
         severity = Severity.OK
-        if metrics["near_dup_pct"] > max_near_dup_pct:
+        if metrics["near_dup_pct"] > max_pct:
             severity = Severity.ERROR
-        elif metrics["near_dup_pct"] > max_near_dup_pct / 2:
+        elif metrics["near_dup_pct"] > max_pct / 2:
             severity = Severity.WARN
 
         summary = (
             f"{metrics['near_dup_pct']:.2f}% near-duplicate "
-            f"({len(clusters):,} clusters), {metrics['exact_dup_pct']:.2f}% exact"
+            f"({len(analysis.clusters):,} clusters), {metrics['exact_dup_pct']:.2f}% exact"
         )
         if "cross_source_dup_pct" in metrics:
             summary += f" · {metrics['cross_source_dup_pct']:.2f}% cross-file"

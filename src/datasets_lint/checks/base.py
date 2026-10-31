@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from datasets_lint.config import Config
+from datasets_lint.config import Config, Suppression
 from datasets_lint.dataset import Dataset
 from datasets_lint.result import CheckResult
 
@@ -18,6 +18,13 @@ class Context:
 
     def threshold(self, check_id: str, key: str, default: Any) -> Any:
         return self.config.threshold(check_id, key, default)
+
+    def suppressed_rows(self, check_id: str) -> dict[int, Suppression]:
+        """Rows this check must ignore, with the suppression that covers them."""
+        return self.config.suppressed_rows(check_id)
+
+    def is_suppressed(self, check_id: str, row: int) -> bool:
+        return row in self.config.suppressed_rows(check_id)
 
 
 class Check(ABC):

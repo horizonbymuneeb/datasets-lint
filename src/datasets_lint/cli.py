@@ -42,9 +42,47 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--text-column", default=None)
     run.add_argument("--label-column", default=None)
     run.add_argument("--config", default=None, help="path to datasets-lint.toml")
+    run.add_argument(
+        "--profile",
+        choices=["default", "strict", "ci", "dev"],
+        default=None,
+        help="threshold preset: strict (blocks on warnings), ci, dev (never fails)",
+    )
+    run.add_argument("--sarif", default=None, help="write SARIF 2.1.0 for GitHub code scanning")
+    run.add_argument("--no-plugins", action="store_true", help="ignore third-party check plugins")
     run.add_argument("--report", default=None, help="write a single-file HTML report")
     run.add_argument("--json-out", default=None, help="write the JSON report")
     run.add_argument("--baseline", default=None, help="previous JSON report to diff against")
+    run.add_argument(
+        "--fix", default=None, metavar="OUT", help="write a repaired copy of the dataset"
+    )
+    run.add_argument(
+        "--fix-only",
+        default=None,
+        help="comma separated fixers to run: dup,stats,pii,contamination",
+    )
+    run.add_argument(
+        "--fix-keep",
+        choices=["first", "last"],
+        default="first",
+        help="which row of a duplicate cluster to keep (default: first)",
+    )
+    run.add_argument(
+        "--fix-pii",
+        choices=["redact", "drop"],
+        default="redact",
+        help="redact PII in place or drop the rows (default: redact)",
+    )
+    run.add_argument(
+        "--fix-drop-contaminated",
+        action="store_true",
+        help="also drop rows that overlap an eval set",
+    )
+    run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="with --fix: plan and report changes without writing the file",
+    )
     run.add_argument(
         "--fail-on",
         choices=["none", "warn", "error"],
@@ -86,8 +124,47 @@ def _exit_code(report: Report, fail_on: str) -> int:
     return EXIT_BREACH if report.worst.rank >= threshold.rank else EXIT_OK
 
 
+def _print_fixes(fixes: dict) -> None:
+    dropped = fixes.get("dropped_rows", 0)
+    by = fixes.get("dropped_by_fixer", {})
+    parts = " · ".join(f"{k} {v:,}" for k, v in by.items())
+    redactions = fixes.get("redactions", {})
+    red = " · ".join(f"{k} {v:,}" for k, v in redactions.items())
+    line = f"  fixes: {dropped:,} rows dropped" + (f" ({parts})" if parts else "")
+    if red:
+        line += f" · {sum(redactions.values()):,} redactions ({red})"
+    print(line)
+    if fixes.get("dry_run"):
+        print("  dry run — nothing written")
+    elif fixes.get("output"):
+        print(f"  fixed → {fixes['output']}")
+
+
+def _run_fixes(args: argparse.Namespace, dataset, cfg: Config) -> dict | None:
+    from datasets_lint.checks.base import Context
+    from datasets_lint.fixers import apply_fixes, plan_fixes, write_dataset
+
+    if not (args.fix or args.dry_run):
+        return None
+    plan = plan_fixes(
+        dataset,
+        Context(config=cfg, seed=cfg.seed),
+        only=_csv(args.fix_only),
+        keep=args.fix_keep,
+        pii_action=args.fix_pii,
+        drop_contaminated=args.fix_drop_contaminated,
+    )
+    outcome = apply_fixes(dataset, plan)
+    stats = outcome.stats
+    if args.fix and not args.dry_run:
+        stats["output"] = str(write_dataset(outcome.rows, args.fix, dataset.columns))
+    else:
+        stats["dry_run"] = True
+    return stats
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
-    cfg: Config = load_config(args.config)
+    cfg: Config = load_config(args.config, profile=args.profile)
     if args.sample is not None:
         cfg.sample = args.sample
     if args.seed is not None:
@@ -100,7 +177,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         cfg.fail_on = args.fail_on
 
     try:
-        checks = resolve_checks(_csv(args.checks), _csv(args.exclude))
+        checks = resolve_checks(
+            _csv(args.checks), _csv(args.exclude), include_plugins=not args.no_plugins
+        )
     except UnknownCheck as exc:
         print(f"datasets-lint: {exc}", file=sys.stderr)
         return EXIT_USAGE
@@ -118,9 +197,17 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return EXIT_USAGE
 
     results = run_checks(dataset, cfg, checks)
-    report = build_report(dataset, cfg, results)
+    try:
+        fixes = _run_fixes(args, dataset, cfg)
+    except (ValueError, OSError) as exc:
+        print(f"datasets-lint: fix error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    report = build_report(dataset, cfg, results, fixes=fixes)
 
     _print_results(report, args.quiet)
+    if fixes:
+        _print_fixes(fixes)
 
     if args.baseline:
         try:
@@ -136,6 +223,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
         write_json(report, args.json_out)
         if not args.quiet:
             print(f"\n  json → {Path(args.json_out)}")
+    if args.sarif:
+        from datasets_lint.report.sarif import write_sarif
+
+        path = write_sarif(report, args.sarif)
+        if not args.quiet:
+            print(f"  sarif → {path}")
     if args.report:
         path = write_html(report, args.report)
         if not args.quiet:

@@ -16,25 +16,30 @@ class StatsCheck(Check):
     description = "Row counts, nulls, empty texts, length percentiles, label balance."
 
     def run(self, ds: Dataset, ctx: Context) -> CheckResult:
+        suppressed = ctx.suppressed_rows(self.id)
+        kept = [r for i, r in enumerate(ds.rows) if i not in suppressed]
+        audited = max(len(kept), 1)
         findings: list[Finding] = []
-        metrics: dict[str, Any] = {"rows": ds.audited_rows, "columns": len(ds.columns)}
+        metrics: dict[str, Any] = {"rows": len(kept), "columns": len(ds.columns)}
 
         null_pct: dict[str, float] = {}
         for col in ds.columns:
-            nulls = sum(1 for r in ds.rows if r.get(col) is None)
-            null_pct[col] = round(100.0 * nulls / max(ds.audited_rows, 1), 3)
+            nulls = sum(1 for r in kept if r.get(col) is None)
+            null_pct[col] = round(100.0 * nulls / audited, 3)
         metrics["null_pct"] = null_pct
 
         empty_rows = 0
         lengths: list[int] = []
         for i, text in ds.texts():
+            if i in suppressed:
+                continue
             norm = normalize(text)
             if not norm:
                 empty_rows += 1
                 findings.append(Finding(message="empty or whitespace-only text", row=i))
             lengths.append(len(norm))
 
-        empty_pct = round(100.0 * empty_rows / max(ds.audited_rows, 1), 3)
+        empty_pct = round(100.0 * empty_rows / audited, 3)
         metrics["empty_rows"] = empty_rows
         metrics["empty_pct"] = empty_pct
         metrics["text_column"] = ds.text_column
@@ -48,11 +53,13 @@ class StatsCheck(Check):
                 "max": s[-1],
                 "mean": round(sum(s) / n, 1),
             }
-            metrics["n_unique_texts"] = len({normalize(t) for _, t in ds.texts()})
+            metrics["n_unique_texts"] = len(
+                {normalize(t) for i, t in ds.texts() if i not in suppressed}
+            )
 
         if ds.label_column:
             counts = Counter(
-                str(r.get(ds.label_column)) for r in ds.rows if r.get(ds.label_column) is not None
+                str(r.get(ds.label_column)) for r in kept if r.get(ds.label_column) is not None
             )
             total = sum(counts.values()) or 1
             balance = {k: round(100.0 * v / total, 2) for k, v in counts.most_common(20)}
@@ -80,8 +87,7 @@ class StatsCheck(Check):
 
         worst_null = max(null_pct.values()) if null_pct else 0.0
         summary = (
-            f"{ds.audited_rows:,} rows · {empty_pct:.2f}% empty · "
-            f"worst column {worst_null:.1f}% null"
+            f"{len(kept):,} rows · {empty_pct:.2f}% empty · worst column {worst_null:.1f}% null"
         )
         if "text_len" in metrics:
             summary += f" · median {metrics['text_len']['p50']:,} chars"

@@ -53,7 +53,7 @@ def _bars(metrics: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
-def _view(report: Report) -> dict[str, Any]:
+def _view(report: Report) -> str:
     env = Environment(autoescape=True)
     template = env.from_string(
         files("datasets_lint.report").joinpath(_TEMPLATE).read_text(encoding="utf-8")
@@ -91,6 +91,8 @@ def _view(report: Report) -> dict[str, Any]:
         verdict=report.worst.value,
         counts=counts,
         checks=checks,
+        fixes=report.fixes,
+        suppressions=report.suppressions,
         total_time=f"{sum(r.duration_s for r in report.results):.2f}s",
     )
 

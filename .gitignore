@@ -12,3 +12,4 @@ htmlcov/
 !docs/**/*.html
 uv.lock
 .DS_Store
+site/

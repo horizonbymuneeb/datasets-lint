@@ -1,149 +1,148 @@
 # datasets-lint
 
-**ruff for training data.** Audit a dataset for duplicates, PII, distribution problems and
-eval-set contamination — offline, on CPU, in one command, with a CI-friendly exit code.
+**ruff for training data.** Audit a dataset for duplicates, PII, distribution problems,
+label conflicts, schema violations and eval-set contamination — then **fix it** — offline,
+on CPU, in one command, with CI-friendly exit codes.
 
-```console
-$ datasets-lint run train.jsonl --report out.html
-datasets-lint 0.1.0  ·  train.jsonl
-  120,000 rows audited (of 120,000, seed 0)  ·  text=text  label=label
-
-  ✓ stats      0.42s   120,000 rows · 0.00% empty · worst column 0.0% null
-  ✗ dup       12.10s   18.20% near-duplicate (4,211 clusters), 12.00% exact
-  ✗ pii        0.91s   0.41% of rows contain PII (email 487, phone 12, api_key 1)
-
-  verdict: error — 2 errors, 0 warnings, 1 ok · 13.43s
-  report → out.html
-```
-
-## Why
+[![PyPI](https://img.shields.io/badge/pypi-datasets--lint-blue)](https://pypi.org/project/datasets-lint/)
+[![CI](https://github.com/horizonbymuneeb/datasets-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/datasets-lint/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ![datasets-lint HTML report](docs/report.png)
 
-Every team that fine-tunes or publishes a dataset re-writes the same checks in a
-throwaway notebook: duplicates, PII, contamination. It is slow, inconsistent, and never
-runs in CI. `datasets-lint` packages it once:
+```console
+$ uvx datasets-lint run train.jsonl --report out.html
+  ✓ stats           120,000 rows · 0.00% empty · worst column 0.0% null
+  ✗ dup             18.20% near-duplicate (4,211 clusters), 12.00% exact
+  ✗ pii             0.41% of rows contain PII (email 487, phone 12, api_key 1)
+  ✗ contamination   3.10% of rows overlap an eval set (gsm8k 3.10%)
+  ✓ schema          schema ok (2 columns)
+  ✓ leakage         no label conflicts
 
-- **fast** — samples 100k rows by default and finishes in seconds, not hours
-- **offline** — no API keys, no cloud, no data leaves the machine
-- **CI-native** — `exit 1` on threshold breach, JSON output, baseline diffing
-- **readable** — one self-contained HTML report you can attach to a dataset card or a PR
-- **extensible** — one check = one file; the plugin API is ~20 lines
+  verdict: error — 3 errors, 0 warnings, 3 ok · 13.43s
+  report → out.html
+```
 
 ## Install
 
 ```console
 uvx datasets-lint --help        # run without installing
-# or
 pip install datasets-lint
 ```
 
-## Usage
+## The 30-second tour
 
 ```console
-datasets-lint run data.jsonl                       # text summary
-datasets-lint run data.parquet --report out.html   # single-file HTML report
-datasets-lint run train.jsonl test.jsonl --checks dup   # cross-split duplicate check
-datasets-lint run data.csv --json-out report.json --fail-on warn
-datasets-lint run data.jsonl --baseline prev.json  # did this PR make the data worse?
-datasets-lint checks                               # list checks
+datasets-lint run data.jsonl                                  # audit
+datasets-lint run data.jsonl --fix data.clean.jsonl           # codemod: dedupe, drop empties, redact PII
+datasets-lint run data.jsonl --profile strict --report out.html
+datasets-lint run data.jsonl --sarif out.sarif                # GitHub code scanning
+datasets-lint run data.jsonl --baseline main.json             # did this PR make it worse?
+datasets-lint checks                                          # list checks
 ```
 
-Supported inputs: `.jsonl`, `.ndjson`, `.json`, `.csv`, `.parquet`.
-
-Exit codes: `0` ok · `1` threshold breached · `2` usage/input error.
+Exit codes: `0` ok · `1` threshold breached · `2` usage error.
 
 ## Checks
 
-| id | what it finds | default severity |
+| id | what it finds | default failure |
 |---|---|---|
-| `stats` | empty rows, nulls, length percentiles, label balance | `error` if >1% empty |
-| `dup` | exact + near duplicates (MinHash/LSH), cross-file overlap | `error` if >2% near-dup |
-| `pii` | emails, phones, IPs, IBANs, SSNs, API keys (redacted) | `error` on secrets |
-| `contamination` | overlap with GSM8K / HumanEval or your own eval sets | `error` if >1% overlap |
+| `stats` | empty rows, nulls, length percentiles, label balance | >1% empty |
+| `dup` | exact + near duplicates (MinHash/LSH, exact Jaccard verified), cross-file overlap | >2% near-dup |
+| `pii` | emails, phones, IPs, IBANs, SSNs, API keys — **redacted** in reports | any secret |
+| `contamination` | overlap with GSM8K / HumanEval or your own eval sets | >1% overlap |
+| `schema` | required columns, declared types, cardinality limits | missing column |
+| `leakage` | identical texts with different labels (label noise) | >1% of rows |
 
-### Contamination
+Full reference: [docs/checks.md](docs/checks.md).
 
-A row is flagged when a large share of *its* n-grams already appears in an eval set
-(containment, not symmetric Jaccard — training rows are often longer than the leaked
-question). Bundled fingerprints: **GSM8K** (1,319 rows) and **HumanEval** (164), MIT
-licensed, generated by `scripts/fetch_eval_sets.py`.
+## Codemods (`--fix`)
+
+Every repair is planned first, counted, and written to a **new** file — the input is
+never touched.
 
 ```console
-$ datasets-lint run train.jsonl
-  ✗ contamination   0.13s   4.00% of rows overlap an eval set (gsm8k 4.00%)
+$ datasets-lint run train.jsonl --fix train.clean.jsonl
+  fixes: 327 rows dropped (dup 326 · stats 1) · 26 redactions (email 13 · phone 13)
+  fixed → train.clean.jsonl
 ```
 
-Add your own eval set (any `.jsonl` / `.csv` / `.parquet` / `.txt`):
+| flag | meaning |
+|---|---|
+| `--fix OUT` | write the repaired dataset (`.jsonl` / `.json` / `.csv` / `.parquet`) |
+| `--fix-only dup,pii` | run a subset of fixers |
+| `--fix-keep first\|last` | which row of a duplicate cluster to keep |
+| `--fix-pii redact\|drop` | redact in place (default) or drop the rows |
+| `--fix-drop-contaminated` | also drop eval-set leaks (opt-in) |
+| `--dry-run` | plan and report, write nothing |
 
-```toml
-[checks.contamination]
-eval_sets = ["gsm8k", "humaneval"]
-ngram = 8                 # words per shingle
-min_containment = 0.5     # share of a row's n-grams that must be in the eval set
-max_contaminated_pct = 1.0
+Details and recipes: [docs/codemods.md](docs/codemods.md).
 
-[checks.contamination.custom_eval_sets]
-my_bench = "evals/my_bench.jsonl"
-```
-
-## Configuration
-
-`datasets-lint.toml` in the working directory (or `--config path`):
+## Profiles, suppressions, config
 
 ```toml
 [defaults]
+profile = "strict"        # default | strict | ci | dev
 sample = 100000
 seed = 0
-fail_on = "error"          # none | warn | error
+fail_on = "error"
 
 [checks.dup]
-threshold = 0.9            # Jaccard threshold for near-duplicates
-num_perm = 64
-shingle_size = 5
 max_near_dup_pct = 2.0
 
-[checks.pii]
-max_error_findings_pct = 0.1
-max_warn_findings_pct = 5.0
-
-[checks.stats]
-max_empty_pct = 1.0
-max_null_pct = 50.0
-min_label_pct = 1.0
+[[suppress]]              # auditable, expiring exceptions
+check = "pii"
+rows = [12, 13]
+reason = "public support addresses, DATA-118"
+expires = "2027-01-01"
 ```
 
-## Writing a check
+Full reference: [docs/configuration.md](docs/configuration.md).
+
+## CI
+
+```yaml
+- uses: horizonbymuneeb/datasets-lint@v1
+  with:
+    paths: data/train.jsonl data/test.jsonl
+    fail-on: error
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: datasets-lint.sarif
+```
+
+Pre-commit, Docker, baseline diffs: [docs/integrations.md](docs/integrations.md).
+
+## Programmatic API
 
 ```python
-# src/datasets_lint/checks/short.py
-from datasets_lint.checks.base import Check, Context
-from datasets_lint.dataset import Dataset
-from datasets_lint.result import CheckResult, Severity
+from datasets_lint import audit, fix, Config
 
+report = audit("train.jsonl", config=Config(profile="strict"))
+print(report.worst.value)  # "ok" | "warn" | "error"
 
-class ShortRowsCheck(Check):
-    id = "short"
-    title = "Short rows"
-    description = "Flags texts under N characters."
-
-    def run(self, ds: Dataset, ctx: Context) -> CheckResult:
-        limit = ctx.threshold(self.id, "min_chars", 20)
-        bad = [i for i, t in ds.texts() if 0 < len(t) < limit]
-        pct = round(100 * len(bad) / max(ds.audited_rows, 1), 2)
-        return CheckResult(
-            check_id=self.id,
-            title=self.title,
-            severity=Severity.WARN if bad else Severity.OK,
-            summary=f"{pct}% of rows are shorter than {limit} chars",
-            metrics={"short_pct": pct},
-            findings=[],  # add Finding(...) entries for samples
-        )
+stats = fix("train.jsonl", "train.clean.jsonl", only=["dup", "pii"])
+print(stats["dropped_by_fixer"], stats["redactions"])
 ```
 
-Register it in `src/datasets_lint/checks/__init__.py`. Add a fixture and a test — that's it.
+## Plugins
+
+Third-party checks are normal packages with an entry point — no fork, no vendoring.
+See [docs/plugins.md](docs/plugins.md).
+
+## Numbers
+
+Measured on 4 vCPU / 8 GB, no GPU (a laptop-class cloud VM):
+
+| workload | wall | peak RSS |
+|---|---|---|
+| 100k rows, 54 MB JSONL, all checks | 46 s | 1.4 GB |
+| same, `--fix` included | 48 s | 1.5 GB |
+| `contamination` alone, 100k rows | 4.5 s | — |
+
+Deterministic: same file + config + seed ⇒ identical JSON report.
 
 ## License
 
-MIT. Bundled eval data: GSM8K and HumanEval, both MIT licensed — see
-`src/datasets_lint/data/eval/manifest.json` for source URLs and checksums.
+MIT. Bundled eval data: GSM8K and HumanEval, both MIT — see
+`src/datasets_lint/data/eval/manifest.json` for sources and checksums.

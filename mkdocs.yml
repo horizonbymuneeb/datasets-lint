@@ -1,0 +1,25 @@
+site_name: datasets-lint
+site_description: ruff for training data — audit datasets for duplicates, PII, contamination
+repo_url: https://github.com/horizonbymuneeb/datasets-lint
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+nav:
+  - Home: index.md
+  - Checks: checks.md
+  - Codemods: codemods.md
+  - Configuration: configuration.md
+  - Plugins: plugins.md
+  - CI & integrations: integrations.md
+  - Roadmap: roadmap.md
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true

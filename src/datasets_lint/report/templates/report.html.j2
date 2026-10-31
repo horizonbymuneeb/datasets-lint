@@ -71,6 +71,43 @@
     <div class="card"><div class="k">label column</div><div class="v mono" style="font-size:15px">{{ label_column }}</div></div>
   </div>
 
+  {% if fixes %}
+  <section class="check" style="border-color: var(--accent)">
+    <h2><span class="badge" style="color:var(--accent)">fix</span> Codemod result
+      <span style="color:var(--muted); font-size:12px; font-weight:400">{{ fixes.output or "dry run" }}</span>
+    </h2>
+    <p class="sum">
+      {{ fixes.input_rows }} rows in → {{ fixes.output_rows }} rows out ·
+      {{ fixes.dropped_rows }} dropped
+      {% if fixes.dropped_by_fixer %}({% for k, v in fixes.dropped_by_fixer.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}){% endif %}
+      {% if fixes.redactions %} · {{ fixes.redactions.values() | sum }} redactions ({% for k, v in fixes.redactions.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}){% endif %}
+    </p>
+    {% if fixes.notes %}
+    <table>
+      <thead><tr><th style="width:180px">fixer</th><th>action</th></tr></thead>
+      <tbody>
+      {% for k, v in fixes.notes.items() %}<tr><td class="mono">{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if suppressions %}
+  <section class="check">
+    <h2><span class="badge">suppressed</span> Suppressions</h2>
+    <table>
+      <thead><tr><th style="width:180px">check</th><th>rows</th><th>reason</th><th>expires</th></tr></thead>
+      <tbody>
+      {% for s in suppressions %}
+        <tr><td class="mono">{{ s.check }}</td><td class="mono">{{ s.rows }}</td>
+            <td>{{ s.reason or "—" }}</td><td class="mono">{{ s.expires or "never" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   {% for c in checks %}
   <section class="check">
     <h2>

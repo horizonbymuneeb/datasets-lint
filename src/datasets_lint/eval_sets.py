@@ -24,7 +24,7 @@ MANIFEST = "manifest.json"
 
 
 def _data_file(name: str):
-    return files(DATA_PKG).joinpath(DATA_SUBDIR, name)
+    return files(DATA_PKG).joinpath(f"{DATA_SUBDIR}/{name}")
 
 
 @lru_cache(maxsize=1)

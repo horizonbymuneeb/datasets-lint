@@ -29,8 +29,15 @@ jobs:
         run: uv run ruff check .
       - name: Format check
         run: uv run ruff format --check .
+      - name: Types
+        run: |
+          uv pip install mypy
+          uv run mypy
       - name: Tests
-        run: uv run pytest --cov=datasets_lint --cov-report=term-missing
+        run: |
+          uv pip install coverage
+          uv run coverage run -m pytest
+          uv run coverage report
 
   self-lint:
     # dogfood: the linter must run cleanly on its own fixtures
@@ -44,24 +51,39 @@ jobs:
       - name: Audit fixtures
         run: |
           uvx --from . datasets-lint run tests/fixtures/clean.jsonl --report clean.html
-          uvx --from . datasets-lint run tests/fixtures/dirty.jsonl --fail-on none --report dirty.html
+          uvx --from . datasets-lint run tests/fixtures/dirty.jsonl --fail-on none \
+            --report dirty.html --sarif dirty.sarif --fix /tmp/dirty.clean.jsonl
       - uses: actions/upload-artifact@v4
         with:
           name: self-lint-reports
-          path: "*.html"
+          path: |
+            *.html
+            *.sarif
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uvx --with mkdocs-material mkdocs build --strict
 
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
       - run: uv build
       - name: Smoke-test the wheel in a clean venv
         run: |
           python -m venv /tmp/venv
           /tmp/venv/bin/pip install dist/*.whl
           /tmp/venv/bin/datasets-lint --version
-          /tmp/venv/bin/datasets-lint run tests/fixtures/dirty.jsonl --fail-on none
+          /tmp/venv/bin/datasets-lint run tests/fixtures/dirty.jsonl --fail-on none --fix /tmp/out.jsonl
+      - name: Docker image
+        run: docker build -t datasets-lint:ci .
       - uses: actions/upload-artifact@v4
         with:
           name: dist
