@@ -81,6 +81,10 @@ Details and recipes: [docs/codemods.md](docs/codemods.md).
 
 ## Profiles, suppressions, config
 
+Start with `datasets-lint init train.jsonl`, then review the inferred columns and
+percentage thresholds. Existing configs require `--force` to overwrite. See
+[configuration](docs/configuration.md) for the sampling and margin rules.
+
 ```toml
 [defaults]
 profile = "strict"        # default | strict | ci | dev
