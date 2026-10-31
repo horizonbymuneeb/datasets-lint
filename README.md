@@ -18,6 +18,8 @@ datasets-lint 0.1.0  ·  train.jsonl
 
 ## Why
 
+![datasets-lint HTML report](docs/report.png)
+
 Every team that fine-tunes or publishes a dataset re-writes the same checks in a
 throwaway notebook: duplicates, PII, contamination. It is slow, inconsistent, and never
 runs in CI. `datasets-lint` packages it once:

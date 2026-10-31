@@ -65,7 +65,7 @@
   <div class="cards">
     <div class="card"><div class="k">rows audited</div><div class="v">{{ audited_rows }}</div></div>
     <div class="card"><div class="k">rows total</div><div class="v">{{ total_rows }}</div></div>
-    <div class="card"><div class="k">checks</div><div class="v">{{ counts.ok }} ok · {{ counts.warn }} warn · {{ counts.error }} err</div></div>
+    <div class="card"><div class="k">checks</div><div class="v" style="font-size:17px">{{ counts.ok }} ok · {{ counts.warn }} warn · {{ counts.error }} err</div></div>
     <div class="card"><div class="k">run time</div><div class="v">{{ total_time }}</div></div>
     <div class="card"><div class="k">text column</div><div class="v mono" style="font-size:15px">{{ text_column }}</div></div>
     <div class="card"><div class="k">label column</div><div class="v mono" style="font-size:15px">{{ label_column }}</div></div>
@@ -111,6 +111,9 @@
       {% endfor %}
       </tbody>
     </table>
+    {% if c.findings_total > c.shown %}
+    <p class="sum" style="font-size:12.5px">showing {{ c.shown }} of {{ c.findings_total }} findings — the full list is in the JSON report</p>
+    {% endif %}
     {% endif %}
   </section>
   {% endfor %}

@@ -160,7 +160,7 @@ class DupCheck(Check):
                     + (f" across {', '.join(srcs)}" if len(srcs) > 1 else "")
                     + f': "{sample}…"',
                     row=members[0],
-                    detail={"rows": members[:20], "size": len(members), "sources": srcs},
+                    detail={"size": len(members), "sources": srcs, "sample_rows": members[:5]},
                 )
             )
 

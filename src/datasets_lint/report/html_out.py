@@ -19,9 +19,10 @@ def _fmt(value: Any) -> str:
     if isinstance(value, int):
         return f"{value:,}"
     if isinstance(value, dict):
-        return ", ".join(f"{k}: {_fmt(v)}" for k, v in list(value.items())[:8])
+        return " · ".join(f"{k}: {_fmt(v)}" for k, v in list(value.items())[:8])
     if isinstance(value, list):
-        return ", ".join(_fmt(v) for v in value[:8])
+        head = ", ".join(_fmt(v) for v in value[:6])
+        return head + (f", … +{len(value) - 6}" if len(value) > 6 else "")
     return str(value)
 
 
@@ -59,6 +60,7 @@ def _view(report: Report) -> dict[str, Any]:
     )
     counts = report.counts()
     checks = []
+    shown = 12
     for r in report.results:
         metrics = {k: _fmt(v) for k, v in r.metrics.items()}
         checks.append(
@@ -72,8 +74,10 @@ def _view(report: Report) -> dict[str, Any]:
                 "bars": _bars(r.metrics),
                 "findings": [
                     {"row": f.row, "message": f.message, "detail": _fmt(f.detail)}
-                    for f in r.findings
+                    for f in r.findings[:shown]
                 ],
+                "findings_total": len(r.findings),
+                "shown": min(shown, len(r.findings)),
             }
         )
     return template.render(
