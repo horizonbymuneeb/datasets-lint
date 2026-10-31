@@ -24,9 +24,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
       - name: Install
-        run: |
-          uv venv --python ${{ matrix.python }}
-          uv pip install -e ".[dev]"
+        run: uv pip install -e ".[dev]"
       - name: Lint
         run: uv run ruff check .
       - name: Format check
