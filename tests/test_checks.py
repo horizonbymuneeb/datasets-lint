@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -72,6 +73,34 @@ def test_pii_clean_dataset_is_ok():
     result = CHECKS_BY_ID["pii"].run(ds, ctx())
     assert result.severity is Severity.OK
     assert result.findings == []
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "180-135",
+        "000-130",
+        "3*60=180",
+        "80,000+50,000",
+        "2021-05-03",
+        "1.2.3",
+    ],
+)
+def test_phone_regex_ignores_arithmetic(tmp_path, value):
+    path = tmp_path / "math.jsonl"
+    path.write_text(json.dumps({"text": f"the result was {value} in total"}) + "\n")
+    ds = load_dataset([path])
+    result = CHECKS_BY_ID["pii"].run(ds, ctx())
+    assert result.metrics["findings_by_kind"].get("phone", 0) == 0
+
+
+@pytest.mark.parametrize("value", ["555-867-5309", "+1 415 555 1234", "(415) 555-1234"])
+def test_phone_regex_keeps_real_numbers(tmp_path, value):
+    path = tmp_path / "phone.jsonl"
+    path.write_text(json.dumps({"text": f"call me on {value} tomorrow"}) + "\n")
+    ds = load_dataset([path])
+    result = CHECKS_BY_ID["pii"].run(ds, ctx())
+    assert result.metrics["findings_by_kind"].get("phone", 0) == 1
 
 
 @pytest.mark.parametrize(

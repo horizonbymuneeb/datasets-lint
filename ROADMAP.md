@@ -4,7 +4,7 @@
 > duplicates, PII, label leakage, contamination and distribution problems, then
 > emits a JSON + HTML report and a non-zero exit code when thresholds are breached.
 
-**Status:** v0.1 core built — contamination + launch pending · **License:** MIT · **Stack:** Python 3.10+ (uv, polars, datasketch, jinja2)
+**Status:** v0.2 shipped — contamination done, launch pending · **License:** MIT · **Stack:** Python 3.10+ (uv, polars, datasketch, jinja2)
 
 ---
 
@@ -67,10 +67,10 @@ Nothing packaged, nothing CI-able, nothing that produces a report a reviewer can
   plausible numbers in < 30 s.
 
 ### Phase 3 — Differentiator: contamination (2 days)
-- [ ] Bundled mini eval-set fingerprints (GSM8K, MMLU sample, HumanEval) as n-gram
+- [x] Bundled mini eval-set fingerprints (GSM8K, MMLU sample, HumanEval) as n-gram
       sketches, downloaded on demand and cached
-- [ ] `contamination`: n-gram overlap + MinHash match, per-eval-set hit rate
-- [ ] Clear verdict: "3.1% of rows overlap GSM8K (threshold 1%)"
+- [x] `contamination`: n-gram overlap + MinHash match, per-eval-set hit rate
+- [x] Clear verdict: "3.1% of rows overlap GSM8K (threshold 1%)"
 - **Exit:** a known-contaminated public dataset is correctly flagged; a clean one is not.
 
 ### Phase 4 — Reports (1–2 days)

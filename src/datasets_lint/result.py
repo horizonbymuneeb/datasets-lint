@@ -76,7 +76,7 @@ class Report:
     label_column: str | None
     columns: list[str]
     results: list[CheckResult] = field(default_factory=list)
-    version: str = "0.1.0"
+    version: str = "0.2.0"
 
     @property
     def worst(self) -> Severity:

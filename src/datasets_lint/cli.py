@@ -67,7 +67,7 @@ def _print_results(report: Report, quiet: bool) -> None:
         )
         for result in report.results:
             print(
-                f"  {ICON[result.severity.value]} {result.check_id:<9}"
+                f"  {ICON[result.severity.value]} {result.check_id:<14}"
                 f"{result.duration_s:>6.2f}s   {result.summary}"
             )
         print()

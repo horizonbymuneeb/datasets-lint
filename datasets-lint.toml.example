@@ -22,3 +22,11 @@ max_near_dup_pct = 2.0
 [checks.pii]
 max_error_findings_pct = 0.1   # secrets, IBANs, SSNs
 max_warn_findings_pct = 5.0    # emails, phones, IPs
+
+[checks.contamination]
+eval_sets = ["gsm8k", "humaneval"]
+ngram = 8
+min_containment = 0.5
+max_contaminated_pct = 1.0
+# [checks.contamination.custom_eval_sets]
+# my_bench = "evals/my_bench.jsonl"

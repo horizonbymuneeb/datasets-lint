@@ -5,7 +5,7 @@ contamination. Runs offline, on CPU, and exits non-zero when thresholds
 are breached so it can gate CI.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from datasets_lint.dataset import Dataset, load_dataset  # noqa: E402
 from datasets_lint.result import CheckResult, Finding, Report, Severity  # noqa: E402

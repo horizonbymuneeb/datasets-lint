@@ -1,0 +1,22 @@
+{
+  "gsm8k": {
+    "bytes": 240978,
+    "description": "GSM8K test split \u2014 grade-school math word problems",
+    "file": "gsm8k.jsonl.gz",
+    "license": "MIT",
+    "rows": 1319,
+    "sha256": "49cdebc514aee8bc17525cc2e4d1c3816b81fa524e187d4051411f886ef8cdf8",
+    "source": "https://github.com/openai/grade-school-math",
+    "url": "https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl"
+  },
+  "humaneval": {
+    "bytes": 30655,
+    "description": "HumanEval \u2014 Python function synthesis problems",
+    "file": "humaneval.jsonl.gz",
+    "license": "MIT",
+    "rows": 164,
+    "sha256": "dbb6d9fb6c7e720c83cf07c549673d495d7f22012d40ba0aa2fdb3eb5b4b8f5b",
+    "source": "https://github.com/openai/human-eval",
+    "url": "https://raw.githubusercontent.com/openai/human-eval/master/data/HumanEval.jsonl.gz"
+  }
+}

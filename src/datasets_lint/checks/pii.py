@@ -38,7 +38,8 @@ PATTERNS: list[tuple[str, Severity, re.Pattern[str]]] = [
         "phone",
         Severity.WARN,
         re.compile(
-            r"(?<![\d.])(?:\+\d{1,3}[\s.\-]?)?(?:\(\d{2,4}\)[\s.\-]?)?\d{3,4}[\s.\-]\d{3,4}(?![\d.])"
+            r"(?<![\d.+])(?:\+\d{1,3}[\s.\-]?)?(?:\(\d{2,4}\)[\s.\-]?)?"
+            r"\d{3,4}[\s.\-]\d{3,4}(?:[\s.\-]\d{2,4})?(?![\d.])"
         ),
     ),
     (
@@ -48,8 +49,26 @@ PATTERNS: list[tuple[str, Severity, re.Pattern[str]]] = [
     ),
 ]
 
-# Common false positives for the phone pattern (dates, versions, ranges).
+# Common false positives for the phone pattern (dates, versions, arithmetic).
 _PHONE_FALSE_POSITIVES = re.compile(r"^(?:19|20)\d{2}[\s.\-]\d{1,2}[\s.\-]\d{1,2}$|^\d+\.\d+\.\d+$")
+_MATH_NEIGHBOURS = set("=<>*+/^×÷")
+
+
+def _is_real_phone(text: str, match: re.Match[str]) -> bool:
+    """Reject arithmetic like `180-135` or numbers inside `<<3*60=180>>` blocks."""
+    value = match.group(0)
+    if _PHONE_FALSE_POSITIVES.match(value.strip()):
+        return False
+    if sum(ch.isdigit() for ch in value) < 7:
+        return False
+    start, end = match.start(), match.end()
+    before = text[max(0, start - 2) : start]
+    after = text[end : end + 2]
+    if any(ch in _MATH_NEIGHBOURS for ch in before + after):
+        return False
+    if before.endswith("<<") or after.startswith(">>"):
+        return False
+    return True
 
 
 def redact(value: str) -> str:
@@ -85,7 +104,7 @@ class PiiCheck(Check):
             for kind, severity, pattern in PATTERNS:
                 for match in pattern.finditer(text):
                     value = match.group(0)
-                    if kind == "phone" and _PHONE_FALSE_POSITIVES.match(value.strip()):
+                    if kind == "phone" and not _is_real_phone(text, match):
                         continue
                     if kind == "iban" and not re.search(r"\d", value):
                         continue
