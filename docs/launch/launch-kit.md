@@ -109,6 +109,7 @@ Feedback very welcome, especially on thresholds for non-English corpora.
 - [x] README with screenshot + numbers
 - [x] CI green on 3.10–3.13
 - [x] `good first issue`s filed
+- [x] Action published to the GitHub Marketplace
 - [ ] Post to HN (Tue–Thu, 08:00–10:00 ET)
 - [ ] Cross-post r/MachineLearning + HF forum same day
 - [ ] Reply to every comment for the first 4 hours

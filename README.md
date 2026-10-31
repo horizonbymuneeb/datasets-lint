@@ -7,6 +7,7 @@ on CPU, in one command, with CI-friendly exit codes.
 [![PyPI](https://img.shields.io/badge/pypi-datasets--lint-blue)](https://pypi.org/project/datasets-lint/)
 [![CI](https://github.com/horizonbymuneeb/datasets-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/datasets-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-datasets--lint-6f42c1?logo=github)](https://github.com/marketplace/actions/datasets-lint)
 
 ![datasets-lint HTML report](docs/report.png)
 
@@ -99,10 +100,23 @@ expires = "2027-01-01"
 
 Full reference: [docs/configuration.md](docs/configuration.md).
 
-## CI
+## CI & Marketplace
+
+The Action is listed on the [GitHub Marketplace](https://github.com/marketplace/actions/datasets-lint)
+(categories: code-quality, testing).
 
 ```yaml
-- uses: horizonbymuneeb/datasets-lint@v1
+- uses: horizonbymuneeb/datasets-lint@v1.1.0
+  with:
+    paths: data/train.jsonl data/test.jsonl
+    fail-on: error
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: datasets-lint.sarif
+```
+
+```yaml
+- uses: horizonbymuneeb/datasets-lint@v1.1.0
   with:
     paths: data/train.jsonl data/test.jsonl
     fail-on: error

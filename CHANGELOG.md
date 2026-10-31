@@ -3,6 +3,7 @@
 ## v1.1.0 — 2026-10-31
 
 ### Added
+- **Published the GitHub Action to the Marketplace** (code-quality, testing).
 - **MMLU fingerprints** (14,042 test rows) in the `contamination` check — the default
   eval set list is now `["gsm8k", "humaneval", "mmlu"]`.
 - `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue forms, PR template.
