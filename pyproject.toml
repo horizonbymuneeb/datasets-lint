@@ -1,6 +1,6 @@
 [project]
 name = "datasets-lint"
-version = "1.1.0"
+version = "1.2.0"
 description = "ruff for training data: audit datasets for duplicates, PII, leakage and contamination"
 readme = "README.md"
 requires-python = ">=3.10"
