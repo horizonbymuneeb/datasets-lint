@@ -6,7 +6,7 @@ single small file, and the plugin API is intentionally tiny.
 ## Setup
 
 ```console
-git clone https://github.com/datasets-lint/datasets-lint
+git clone https://github.com/horizonbymuneeb/datasets-lint
 cd datasets-lint
 uv venv && uv pip install -e ".[dev]"
 pytest
