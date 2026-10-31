@@ -125,10 +125,11 @@ def _guess_text_column(df: pl.DataFrame) -> str | None:
         hint = 1.0 if any(h in name.lower() for h in TEXT_HINTS) else 0.0
         try:
             sample = col.drop_nulls().head(200).cast(pl.String)
-            avg_len = (sample.str.len_chars().mean() or 0.0) if sample.len() else 0.0
+            mean = sample.str.len_chars().mean() if sample.len() else 0.0
+            avg_len = float(mean) if isinstance(mean, (int, float)) else 0.0
         except Exception:
             avg_len = 0.0
-        score = hint * 10_000 + float(avg_len)
+        score = hint * 10_000 + avg_len
         if best is None or score > best[0]:
             best = (score, name)
     return best[1] if best else None
