@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from datasets_lint._version import VERSION
+
 
 class Severity(str, Enum):
     """Ordered severity: ok < warn < error."""
@@ -78,7 +80,7 @@ class Report:
     results: list[CheckResult] = field(default_factory=list)
     fixes: dict[str, Any] | None = None
     suppressions: list[dict[str, Any]] = field(default_factory=list)
-    version: str = "1.1.0"
+    version: str = field(default_factory=lambda: VERSION)
 
     @property
     def worst(self) -> Severity:

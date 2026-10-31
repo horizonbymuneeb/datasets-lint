@@ -10,8 +10,7 @@ are breached so it can gate CI.
     'ok'
 """
 
-__version__ = "1.1.0"
-
+from datasets_lint._version import VERSION as __version__  # noqa: E402
 from datasets_lint.api import audit, fix  # noqa: E402
 from datasets_lint.config import Config  # noqa: E402
 from datasets_lint.dataset import Dataset, load_dataset  # noqa: E402
